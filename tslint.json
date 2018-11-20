@@ -1,6 +1,9 @@
 {
   "extends":["tslint:recommended"],
   "rules": {
+    "variable-name": false,
+    "forin": false,
+    "no-bitwise": false,
     "no-console": false,
     "max-classes-per-file": false,
     "max-line-length": false,
@@ -52,8 +55,8 @@
         "call-signature": "onespace",
         "index-signature": "onespace",
         "parameter": "onespace",
-        "property-declaration": "onespace",
-        "variable-declaration": "onespace"
+        "property-declaration": "space",
+        "variable-declaration": "space"
       }
     ],
     "no-internal-module": true,
