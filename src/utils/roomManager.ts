@@ -1,15 +1,15 @@
 import Player from "./player";
 import Room from "./room";
 
-export default class RoomManager {
-    public static rooms: {[key: string]: Room};
-
+class RoomManager extends Map<string, Room> {
+    public static roomManager: RoomManager = new RoomManager();
     public createRoom(name: string): Room {
-        RoomManager.rooms[name] = new Room(name);
-        return RoomManager.rooms[name];
+        this.set(name, new Room(name));
+        return this.get(name);
     }
 
     public removeRoom(name: string): void {
-        delete RoomManager.rooms[name];
+        this.delete(name);
     }
 }
+export const roomManager = RoomManager.roomManager;

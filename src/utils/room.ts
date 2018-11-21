@@ -1,15 +1,14 @@
 import * as socketIO from "socket.io";
-import {Cards} from "./card";
+import {Card, Cards} from "./card";
 import * as logic from "./logic";
 import Player from "./player";
+import { Delay } from "./System";
 
-export default class Room {
-    public players: {[key: string]: Player};
-
-    public deck:         Cards;
+export default class Room extends Map<string, Player> {
+    public Deck:         Cards;
     public discardTiles: Cards;
     public huTiles:      Cards;
-    public changedTiles: {[key: string]: Cards};
+    public changedTiles = new Map<string, Cards>();
 
     public io: SocketIO.Server;
 
@@ -25,56 +24,78 @@ export default class Room {
     }
 
     constructor(name: string) {
+        super();
         this.name = name;
         this.amount = 0;
     }
 
     public async addPlayer(id: string, name: string, room: string): Promise<void> {
-        this.players[id] = new Player(id, name, room);
+        this.set(id, new Player(id, name, room));
         this.amount++;
-        this.io.to(this.name).emit("updatePlayerList", await this.getPlayerNameList());
+        const nameList = await this.getPlayerNameList();
+        this.io.to(this.name).emit("updatePlayerList", nameList);
 
         if (this.amount === 4) {
-
+            this.io.to(this.name).emit("storePlayerList", nameList);
         }
     }
 
     public removePlayer(id: string): void {
-        delete this.players[id];
+        this.delete(id);
         this.amount--;
     }
 
     public async getPlayerList(): Promise<Player[]> {
-        const playerList = Object.keys(this.players).map((idx: string) => this.players[idx]);
+        const playerList: Player[] = [];
+        this.forEach((player) => playerList.push(player));
 
         return playerList;
     }
 
     public async getPlayerNameList(): Promise<string[]> {
-        const nameList = Object.keys(this.players).map((idx: string) => this.players[idx].Name);
+        const nameList: string[] = [];
+        this.forEach((player) => nameList.push(player.Name));
 
         return nameList;
     }
 
-    public Init(): void {
-        this.deck = new Cards(true);
+    public async Init(): Promise<void> {
+        this.Deck = new Cards(true);
         this.discardTiles = new Cards();
         this.huTiles = new Cards();
-        for (const idx in this.players) {
-            this.players[idx].Init();
+
+        let len = await this.Deck.Count();
+        for (const [name, player] of this.entries()) {
+            player.Init();
+            for (let j = 0; j < 13; j++) {
+                const idx = ~~(Math.random() * len);
+                const result = await this.Deck.at(idx);
+                await this.Deck.sub(result);
+                await player.Hand.add(result);
+                len -= 1;
+            }
+            player.socket.emit("dealCard", await player.Hand.toStringArray());
         }
     }
 
     public async ChangeCard(): Promise<void> {
-        this.io.to(this.name).emit("changeCard");
+        for (const [name, player] of this.entries()) {
+            const defaultChangeCard = await player.defaultChangeCard();
+            player.socket.emit("change", await defaultChangeCard.toStringArray(), 30000);
+            player.socket.on("changeCard", (card: string[]) => {
+                // TODO
+            });
+        }
+
     }
 
     public async ChooseLack(): Promise<void> {
-        
+        // TODO
     }
 
     public async Run(): Promise<void> {
-        this.Init();
+        await this.Init();
+        await Delay(5000);
         await this.ChangeCard();
         await this.ChooseLack();
     }

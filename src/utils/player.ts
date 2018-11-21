@@ -1,7 +1,8 @@
 import * as socketIO from "socket.io";
 import {Card, Cards, Color} from "./card";
 import {SSJ} from "./logic";
-import RoomManager from "./RoomManager";
+import {roomManager as RoomManager} from "./RoomManager";
+import * as System from "./System";
 
 export default class Player {
     public lack:   number;
@@ -13,7 +14,7 @@ export default class Player {
     public HuCards      = new Cards();
 
     public gonRecord = new Array<number>(4);
-    public maxTai:    number;
+    public maxTai: number;
 
     public isHu:    boolean;
     public isTing:  boolean;
@@ -65,7 +66,7 @@ export default class Player {
     }
 
     public async checkGon(card: Card): Promise<boolean> {
-        if (card.color === this.lack || (await RoomManager.rooms[this.room].deck.isEmpty())) {
+        if (card.color === this.lack || (await RoomManager.get(this.room).Deck.isEmpty())) {
             return false;
         }
 
@@ -179,5 +180,23 @@ export default class Player {
             }
         }
         return result;
+    }
+
+    public async changeCard(): Promise<Cards> {
+        const defaultChange = await this.defaultChangeCard();
+        this.socket.emit("change", await defaultChange.toStringArray(), 30000);
+        const changeByClient = this.waitForChangeCard();
+        const delay = System.DelayValue(30000, defaultChange);
+        const changeCard = await Promise.race([delay, changeByClient]);
+        return changeCard;
+    }
+
+    public waitForChangeCard(): Promise<Cards> {
+        return new Promise<Cards>((resolve, reject) => {
+            this.socket.on("changeCard", async (cards: string[]) => {
+                const res = await Cards.stringArrayToCards(cards);
+                resolve(res);
+            });
+        });
     }
 }

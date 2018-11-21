@@ -41,7 +41,10 @@ export class Color {
 }
 
 export class Cards {
-    public values: Color[];
+    public static async stringArrayToCards(card: string[]): Promise<Cards> {
+        // TODO
+    }
+    public values = new Array<Color>(3);
 
     constructor(full: boolean = false) {
         for (let i = 0; i < 3; i++) {
@@ -115,7 +118,7 @@ export class Cards {
         for (let c = 0; c < 3; c++) {
             for (let v = 0; v < 9; v++) {
                 for (let n = 0; n < await this.values[c].getIndex(v); n++) {
-                    result.push(color[c] + v);
+                    result.push(color[c] + (v + 1));
                 }
             }
         }
