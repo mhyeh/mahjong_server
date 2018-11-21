@@ -1,4 +1,19 @@
 export class Card {
+    public static async stringArrayToCardArray(cards: string[]): Promise<Card[]> {
+        const color: {[key: string]: number} = {
+            b: 0,
+            c: 1,
+            d: 2,
+        };
+        const res = [];
+        for (const card of cards) {
+            const c = color[card.charAt(0)];
+            const v = Number(card.charAt(1));
+            res.push(new Card(c, v));
+        }
+        return res;
+    }
+
     public color: number;
     public value: number;
 
@@ -41,9 +56,12 @@ export class Color {
 }
 
 export class Cards {
-    public static async stringArrayToCards(card: string[]): Promise<Cards> {
-        // TODO
+    public static async CardArrayToCards(cards: Card[]): Promise<Cards> {
+        const res = new Cards();
+        await res.add(cards);
+        return res;
     }
+
     public values = new Array<Color>(3);
 
     constructor(full: boolean = false) {

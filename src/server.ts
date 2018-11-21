@@ -52,7 +52,7 @@ async function main(): Promise<void> {
                 return callback("Room is Full");
             }
 
-            if (room.get(username)) {
+            if (room.findUser(username)) {
                 return callback("Username already taken");
             }
 
@@ -60,19 +60,11 @@ async function main(): Promise<void> {
             socket.join(room.Name); // join room
             room.io = io;
 
-            const id = username;
-            room.addPlayer(id, username, params.Room); // setiap player yang join ditambahin ke arr player
-            room.get(id).socket = socket;
+            const id = await room.addPlayer(username, params.Room); // setiap player yang join ditambahin ke arr player
+            room.players[id].socket = socket;
 
-            // const playerList = await room.getPlayerNameList();
-            // io.to(room.Name).emit("updatePlayerList", playerList); // update div nya player
-            const roomPlayer = (await room.getPlayerNameList()).length; // ngambil ulang jumlah player
-
-            // console.log(JSON.stringify(players,undefined,2))
-            // console.log(roomPlayer)
-            // console.log(playerList)
             // ----------------------- EVENT 2. RETURN CALLBACK GAME START -----------------------
-            if (roomPlayer === 4) {
+            if (room.numPlayer === 4) {
                 room.Run();
             }
             callback(); // gak ngasih apa-apa karna ga error
@@ -80,94 +72,17 @@ async function main(): Promise<void> {
         // endregion
         // end join room ------------------------------------------------------------------------------
 
-        socket.on("login", (name: string, room: string, callback: any) => {
-            console.log(name, room);
+        socket.on("login", (id: number, room: string, callback: any) => {
             socket.join(room);
             try {
                 RoomManager.get(room).io = io;
-                RoomManager.get(room).get(name).socket = socket;
+                RoomManager.get(room).players[id].socket = socket;
             } catch (e) {
                 console.log(e);
                 callback(e);
             }
             callback();
         });
-
-        //// ----------------------- EVENT 3. LISTEN CHANGE CARD -----------------------
-        // default change card
-    //     socket.on("cdChangeCard", (id: string, room: string) => {
-    //         timer = setTimeout(() => {
-    //             var room = rooms.getRoom(roomname); // ambil room
-    //             var cards = getPlayerHand(id, roomname).slice(0, 3); // =============================================== GANTI LOGICNYA
-    //             rooms.returnCards(roomname, id, cards);
-    //             room.changeCard++;
-
-    //             var playerHand = getPlayerHand(id, roomname);
-    //             socket.emit("dealCard", playerHand); // kasih kartu
-    //             players.updatePlayerHand(id, playerHand); // update player hand
-
-    //             if (room.changeCard === 4) {
-    //                 // ----------------------- EVENT 4. EMIT AFTER CHANGE -----------------------
-    //                 io.to(roomname).emit("afterChange", room.currentTurn);
-    //                 rooms.returnChangeCard(roomname);
-    //                 room.changeCard = 0;
-    //             }
-    //         }, 200);
-    //     });
-
-    //     socket.on("changeCard", (id, params, cards, callback) => {
-    //         clearTimeout(timer)
-    //         var room = rooms.getRoom(params.Room); // ambil room
-    //         rooms.returnCards(params.Room, id, cards);
-    //         room.changeCard++;
-
-    //         var playerHand = getPlayerHand(id, params.Room);
-    //         socket.emit("dealCard", playerHand); // kasih kartu
-    //         players.updatePlayerHand(id, playerHand); // update player hand
-    //         // callback("you change "+cards+" to "+playerHand.slice(playerHand.length-3,playerHand.length));
-    //         callback("you change " + cards);
-    //         if (room.changeCard === 4) {
-    //             // ----------------------- EVENT 4. EMIT AFTER CHANGE -----------------------
-    //             io.to(params.Room).emit("afterChange", room.currentTurn);
-    //             rooms.returnChangeCard(params.Room);
-    //             room.changeCard = 0;
-    //             callback();
-    //         }
-    //         // console.log(JSON.stringify(rooms, undefined, 2));
-    //     });
-
-    //     //// ----------------------- EVENT 5. LISTEN CHOOSE LACK -----------------------
-    //     // default change card
-    //     socket.on("cdChooseLack", (id, roomname) => {
-    //         timer = setTimeout(() => {
-    //             var room = rooms.getRoom(roomname);
-    //             var lackColor = Math.floor(Math.random() * 3);
-    //             players.updatePlayerLack(id, lackColor);
-    //             room.chooseLack++;
-    //             if (room.chooseLack === 4) {
-    //                 // ----------------------- EVENT 6. EMIT AFTER LACK -----------------------
-    //                 io.to(roomname).emit("afterAction", room.currentTurn);
-    //                 room.chooseLack = 0;
-    //                 // console.log(JSON.stringify(players, undefined, 2));
-    //             }
-    //         }, 200);
-    //     });
-
-    //     socket.on("chooseLack", (id, roomname, lackColor, callback) => {
-    //         clearTimeout(timer)
-    //         var room = rooms.getRoom(roomname);
-    //         players.updatePlayerLack(id, lackColor);
-    //         callback("you choose lack " + lackColor);
-    //         room.chooseLack++;
-    //         if (room.chooseLack === 4) {
-    //             // ----------------------- EVENT 6. EMIT AFTER LACK -----------------------
-    //             io.to(roomname).emit("afterAction", room.currentTurn);
-    //             room.chooseLack = 0;
-    //             callback();
-    //         }
-    //         // console.log(JSON.stringify(rooms, undefined, 2));
-    //         // console.log(JSON.stringify(players, undefined, 2));
-    //     });
 
     //     //// ----------------------- EVENT 7. LISTEN DRAW CARD -----------------------
     //     socket.on("drawCard", (id, room, callback) => {

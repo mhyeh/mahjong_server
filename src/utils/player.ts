@@ -22,11 +22,11 @@ export default class Player {
 
     public socket: socketIO.Socket;
 
-    private id:   string;
+    private id:   number;
     private name: string;
     private room: string;
 
-    public get ID(): string {
+    public get ID(): number {
         return this.id;
     }
 
@@ -38,7 +38,7 @@ export default class Player {
         return this.room;
     }
 
-    constructor(id: string, name: string, room: string) {
+    constructor(id: number, name: string, room: string) {
         this.id = id;
         this.name = name;
         this.room = room;
@@ -166,14 +166,36 @@ export default class Player {
         return result;
     }
 
-    public async defaultChangeCard(): Promise<Cards> {
-        const result = new Cards();
+    public async ChangeCard(): Promise<Card[]> {
+        const defaultChange = await this.defaultChangeCard();
+        const t = await Cards.CardArrayToCards(defaultChange);
+        const waitingTime = 30000;
+        this.socket.emit("change", await t.toStringArray(), waitingTime);
+        const changeByClient = this.waitForChangeCard();
+        const delay = System.DelayValue(waitingTime, defaultChange);
+        const changeCards = await Promise.race([delay, changeByClient]);
+        await this.Hand.sub(changeCards);
+        return changeCards;
+    }
+
+    public async ChooseLack(): Promise<number> {
+        const defaultLack = 0;
+        const waitingTime = 10000;
+        this.socket.emit("lack", defaultLack, waitingTime);
+        const chooseByClient = this.waitForChooseLack();
+        const delay = System.DelayValue(waitingTime, defaultLack);
+        this.lack = await Promise.race([delay, chooseByClient]);
+        return this.lack;
+    }
+
+    private async defaultChangeCard(): Promise<Card[]> {
+        const result = [];
         let count = 0;
         for (let c = 0; c < 3 && count < 3; c++) {
             if ((await this.Hand.values[c].Count()) >= 3) {
                 for (let v = 0; count < 3 && v < 9; v++) {
                     for (let n = 0; count < 3 && (n < await this.Hand.values[c].getIndex(v)); n++) {
-                        await result.add(new Card(c, v));
+                        result.push(new Card(c, v));
                         count++;
                     }
                 }
@@ -182,20 +204,19 @@ export default class Player {
         return result;
     }
 
-    public async changeCard(): Promise<Cards> {
-        const defaultChange = await this.defaultChangeCard();
-        this.socket.emit("change", await defaultChange.toStringArray(), 30000);
-        const changeByClient = this.waitForChangeCard();
-        const delay = System.DelayValue(30000, defaultChange);
-        const changeCard = await Promise.race([delay, changeByClient]);
-        return changeCard;
+    private waitForChangeCard(): Promise<Card[]> {
+        return new Promise<Card[]>((resolve, reject) => {
+            this.socket.on("changeCard", async (cards: string[]) => {
+                const res = await Card.stringArrayToCardArray(cards);
+                resolve(res);
+            });
+        });
     }
 
-    public waitForChangeCard(): Promise<Cards> {
-        return new Promise<Cards>((resolve, reject) => {
-            this.socket.on("changeCard", async (cards: string[]) => {
-                const res = await Cards.stringArrayToCards(cards);
-                resolve(res);
+    private waitForChooseLack(): Promise<number> {
+        return new Promise<number>((resolve, reject) => {
+            this.socket.on("chooseLack", (lack: number) => {
+                resolve(lack);
             });
         });
     }
