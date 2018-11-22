@@ -299,9 +299,15 @@ export default class Player {
     }
 
     public async OnCommand(cards: Map<CommandType, Card[]>, command: CommandType, from: number): Promise<IAction> {
+        const map = new Map<CommandType, string[]>();
+        for (const [key, value] of cards) {
+            const t = await Cards.CardArrayToCards(value);
+            map.set(key, await t.toStringArray());
+        }
+
         const defaultCommand: IAction = { command: CommandType.NONE, card: new Card(-1, -1), score: 0 };
         const waitingTime = 10000;
-        this.socket.emit("command", cards, command, waitingTime);
+        this.socket.emit("command", map, command, waitingTime);
         const commandByClient = this.waitForCommand();
         const delay = System.DelayValue(waitingTime, defaultCommand);
         const action = await Promise.race([delay, commandByClient]);

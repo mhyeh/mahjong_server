@@ -93,6 +93,7 @@ export default class Room {
         while (!gameover) {
             let throwCard = new Card(-1, -1);
             let action: IAction = { command: CommandType.NONE, card: new Card(-1, -1), score: 0 };
+
             if (onlyThrow) {
                 throwCard = await this.players[currentIdx].ThrowCard();
                 await this.players[currentIdx].Hand.sub(throwCard);
@@ -102,18 +103,13 @@ export default class Room {
                 action = await this.players[currentIdx].Draw(drawCard);
                 throwCard = action.card;
             }
-            let commandIdx: ICommandIdx = {
-                gonIdx: -1,
-                huIdx:  -1,
-                ponIdx: -1,
-            };
-            let fail   = false;
 
+            let commandIdx: ICommandIdx = { gonIdx: -1, huIdx:  -1, ponIdx: -1 };
+            let fail = false;
             if ((action.command & CommandType.COMMAND_PONGON)) {
                 for (let i = 0; i < 4; i++) {
                     if (i !== currentIdx) {
-                        let tai = 0;
-                        tai = await this.players[i].checkHu(action.card);
+                        const tai = await this.players[i].checkHu(action.card);
                         if (tai) {
                             const cards = new Map<CommandType, Card[]>();
                             cards.set(CommandType.COMMAND_HU, new Array<Card>());
@@ -299,7 +295,6 @@ export default class Room {
                     if (commandIdx.huIdx === -1) {
                         this.huTiles.add(action.card);
                     }
-                    // 可以一炮多響
                     commandIdx.huIdx = playerIdx;
                     const score = Math.pow(2, (tai + Number(this.players[currentIdx].justGon)) - 1);
                     other_player.credit += score;
@@ -314,8 +309,7 @@ export default class Room {
                     } else {
                         other_player.OnFail(action.command);
                     }
-                }
-                else if (action.command & CommandType.COMMAND_PON) {
+                } else if (action.command & CommandType.COMMAND_PON) {
                     if (commandIdx.huIdx === -1 && commandIdx.gonIdx === -1 && commandIdx.ponIdx === -1) {
                         commandIdx.ponIdx = playerIdx;
                     } else {
@@ -376,8 +370,12 @@ export default class Room {
         }
     }
 
-    private End(): void {
-        // TODO
+    private async End(): Promise<void> {
+        const data = [];
+        for (const player of this.players) {
+            data.push({ hand: await player.Hand.toStringArray(), score: player.credit });
+        }
+        this.io.to(this.name).emit("end", data);
     }
 }
 
