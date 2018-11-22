@@ -14,12 +14,26 @@ export class Card {
         return res;
     }
 
+    public static async stringToCard(card: string): Promise<Card> {
+        const color: {[key: string]: number} = {
+            b: 0,
+            c: 1,
+            d: 2,
+        };
+        return new Card(color[card.charAt(0)], Number(card.charAt(1)));
+    }
+
     public color: number;
     public value: number;
 
     constructor(c: number, v: number) {
         this.color = c;
         this.value = v;
+    }
+
+    public async toString(): Promise<string> {
+        const color = ["b", "c", "d"];
+        return color[this.color] + (this.value + 1);
     }
 }
 
