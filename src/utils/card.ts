@@ -1,26 +1,18 @@
 export class Card {
-    public static async stringArrayToCardArray(cards: string[]): Promise<Card[]> {
-        const color: {[key: string]: number} = {
-            b: 0,
-            c: 1,
-            d: 2,
-        };
+    public static stringArrayToCardArray(cards: string[]): Card[] {
+        const color: {[key: string]: number} = { c: 0, d: 1, b: 2 };
         const res = [];
         for (const card of cards) {
             const c = color[card.charAt(0)];
-            const v = Number(card.charAt(1));
+            const v = Number(card.charAt(1)) - 1;
             res.push(new Card(c, v));
         }
         return res;
     }
 
-    public static async stringToCard(card: string): Promise<Card> {
-        const color: {[key: string]: number} = {
-            b: 0,
-            c: 1,
-            d: 2,
-        };
-        return new Card(color[card.charAt(0)], Number(card.charAt(1)));
+    public static stringToCard(card: string): Card {
+        const color: {[key: string]: number} = { c: 0, d: 1, b: 2 };
+        return new Card(color[card.charAt(0)], Number(card.charAt(1)) - 1);
     }
 
     public color: number;
@@ -31,8 +23,8 @@ export class Card {
         this.value = v;
     }
 
-    public async toString(): Promise<string> {
-        const color = ["b", "c", "d"];
+    public toString(): string {
+        const color = ["c", "d", "b"];
         return color[this.color] + (this.value + 1);
     }
 }
@@ -44,23 +36,23 @@ export class Color {
         this.value = v;
     }
 
-    public async getIndex(idx: number): Promise<number> {
+    public getIndex(idx: number): number {
         return (this.value >> (idx * 3)) & 7;
     }
 
-    public async add(idx: number): Promise<void> {
+    public add(idx: number): void {
         this.value += (1 << (idx * 3));
     }
 
-    public async sub(idx: number): Promise<void> {
+    public sub(idx: number): void {
         this.value -= (1 << (idx * 3));
     }
 
-    public async have(idx: number): Promise<boolean> {
+    public have(idx: number): boolean {
         return ((this.value >> (idx * 3)) & 7) > 0;
     }
 
-    public async Count(): Promise<number> {
+    public Count(): number {
         let result = 0;
         for (let i = 0; i < 9; i++) {
             result += ((this.value >> (i * 3)) & 7);
@@ -70,9 +62,9 @@ export class Color {
 }
 
 export class Cards {
-    public static async CardArrayToCards(cards: Card[]): Promise<Cards> {
+    public static CardArrayToCards(cards: Card[]): Cards {
         const res = new Cards();
-        await res.add(cards);
+        res.add(cards);
         return res;
     }
 
@@ -89,23 +81,23 @@ export class Cards {
         }
     }
 
-    public async isEmpty(): Promise<boolean> {
+    public isEmpty(): boolean {
         return (this.values[0].value + this.values[1].value + this.values[2].value) === 0;
     }
 
-    public async containColor(c: number): Promise<boolean> {
-        return (await this.values[c].Count()) > 0;
+    public containColor(c: number): boolean {
+        return this.values[c].Count() > 0;
     }
 
-    public async have(card: Card): Promise<boolean> {
-        return (await this.values[card.color].getIndex(card.value)) > 0;
+    public have(card: Card): boolean {
+        return this.values[card.color].getIndex(card.value) > 0;
     }
 
-    public async at(idx: number): Promise<Card> {
+    public at(idx: number): Card {
         let count = 0;
         for (let c = 0; c < 3; c++) {
             for (let v = 0; v < 9; v++) {
-                count += await this.values[c].getIndex(v);
+                count += this.values[c].getIndex(v);
                 if (count > idx) {
                     return new Card(c, v);
                 }
@@ -114,22 +106,22 @@ export class Cards {
         return new Card(-1, -1);
     }
 
-    public async Count(): Promise<number> {
+    public Count(): number {
         let result = 0;
         for (let i = 0; i < 3; i++) {
-            result += await this.values[i].Count();
+            result += this.values[i].Count();
         }
         return result;
     }
 
-    public async Draw(): Promise<Card> {
-        const len = await this.Count();
-        const result = await this.at(~~(Math.random() * len));
+    public Draw(): Card {
+        const len = this.Count();
+        const result = this.at(~~(Math.random() * len));
         this.sub(result);
         return result;
     }
 
-    public async Translate(lack: number): Promise<number> {
+    public Translate(lack: number): number {
         let first = true;
         let result = 0;
         for (let i = 0; i < 3; i++) {
@@ -144,12 +136,12 @@ export class Cards {
         return result;
     }
 
-    public async toStringArray(): Promise<string[]> {
+    public toStringArray(): string[] {
         const result = [];
-        const color = ["b", "c", "d"];
+        const color = ["c", "d", "b"];
         for (let c = 0; c < 3; c++) {
             for (let v = 0; v < 9; v++) {
-                for (let n = 0; n < await this.values[c].getIndex(v); n++) {
+                for (let n = 0; n < this.values[c].getIndex(v); n++) {
                     result.push(color[c] + (v + 1));
                 }
             }
@@ -157,29 +149,29 @@ export class Cards {
         return result;
     }
 
-    public async add(input: Card[] | Card): Promise<void> {
+    public add(input: Card[] | Card): void {
         if (input instanceof Array) {
             for (const card of input) {
-                if ((await this.values[card.color].getIndex(card.value)) < 4) {
+                if (this.values[card.color].getIndex(card.value) < 4) {
                     this.add(card);
                 }
             }
         } else {
-            if ((await this.values[input.color].getIndex(input.value)) < 4) {
+            if (this.values[input.color].getIndex(input.value) < 4) {
                 this.values[input.color].add(input.value);
             }
         }
     }
 
-    public async sub(input: Card[] | Card): Promise<void> {
+    public sub(input: Card[] | Card): void {
         if (input instanceof Array) {
             for (const card of input) {
-                if ((await this.values[card.color].getIndex(card.value)) > 0) {
+                if (this.values[card.color].getIndex(card.value) > 0) {
                     this.sub(card);
                 }
             }
         } else {
-            if ((await this.values[input.color].getIndex(input.value)) > 0) {
+            if (this.values[input.color].getIndex(input.value) > 0) {
                 this.values[input.color].sub(input.value);
             }
         }

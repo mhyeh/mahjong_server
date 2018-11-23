@@ -2,7 +2,7 @@ import * as SocketIO from "socket.io";
 import {Card, Cards} from "./card";
 import {CommandType} from "./logic";
 import Player, { IAction } from "./player";
-import { Delay } from "./System";
+import * as System from "./System";
 
 export default class Room {
     public players      = new Array<Player>(4);
@@ -41,12 +41,12 @@ export default class Room {
         this.amount = 0;
     }
 
-    public async addPlayer(name: string, room: string): Promise<number> {
+    public addPlayer(name: string, room: string): number {
         const id = this.nextSeat;
         this.players[id] = new Player(id, name, room);
         this.seat[id] = true;
         this.amount++;
-        const playerList = await this.getPlayerList();
+        const playerList = this.getPlayerList();
         this.io.to(this.name).emit("updatePlayerList", playerList);
 
         if (this.amount === 4) {
@@ -62,29 +62,36 @@ export default class Room {
     }
 
     public findUser(name: string): boolean {
-        return this.players.findIndex((player) => player.Name === name) !== -1;
+        for (let i = 0; i < 4; i++) {
+            if (this.seat[i]) {
+                if (this.players[i].Name === name) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
-    public async getPlayerList(): Promise<string[]> {
+    public getPlayerList(): string[] {
         const nameList: string[] = [];
         this.players.forEach((player) => nameList.push(player.Name));
 
         return nameList;
     }
 
-    public async broadcastThrow(id: number, card: Card): Promise<void> {
-        this.io.to(this.name).emit("othersThrow", id, await card.toString());
+    public broadcastThrow(id: number, card: Card): void {
+        this.io.to(this.name).emit("othersThrow", id, card.toString());
     }
 
-    public async broadcastCommand(from: number, to: number, command: CommandType, card: Card, score: number): Promise<void> {
-        this.io.to(this.name).emit("othersCommand", from, to, command, await card.toString(), score);
+    public broadcastCommand(from: number, to: number, command: CommandType, card: Card, score: number): void {
+        this.io.to(this.name).emit("othersCommand", from, to, command, card.toString(), score);
     }
 
     public async Run(): Promise<void> {
-        await this.Init();
-        await Delay(5000);
+        this.Init();
+        await System.Delay(10000);
         await this.ChangeCard();
-        await Delay(3000);
+        await System.Delay(10000);
         await this.ChooseLack();
 
         let currentIdx = 0;
@@ -96,10 +103,10 @@ export default class Room {
 
             if (onlyThrow) {
                 throwCard = await this.players[currentIdx].ThrowCard();
-                await this.players[currentIdx].Hand.sub(throwCard);
+                this.players[currentIdx].Hand.sub(throwCard);
                 onlyThrow = false;
             } else {
-                const drawCard = await this.Deck.Draw();
+                const drawCard = this.Deck.Draw();
                 action = await this.players[currentIdx].Draw(drawCard);
                 throwCard = action.card;
             }
@@ -107,26 +114,35 @@ export default class Room {
             let commandIdx: ICommandIdx = { gonIdx: -1, huIdx:  -1, ponIdx: -1 };
             let fail = false;
             if ((action.command & CommandType.COMMAND_PONGON)) {
-                for (let i = 0; i < 4; i++) {
-                    if (i !== currentIdx) {
-                        const tai = await this.players[i].checkHu(action.card);
-                        if (tai) {
-                            const cards = new Map<CommandType, Card[]>();
-                            cards.set(CommandType.COMMAND_HU, new Array<Card>());
-                            cards.get(CommandType.COMMAND_HU).push(action.card);
-                            const act = await this.players[i].OnCommand(cards, CommandType.COMMAND_HU, (4 + currentIdx - i) % 4);
-                            if (act.command & CommandType.COMMAND_HU) {
-                                await this.players[currentIdx].Door.sub(action.card);
-                                await this.players[currentIdx].VisiableDoor.sub(action.card);
-                                this.players[currentIdx].credit -= Math.pow(2, tai);
-                                await this.players[i].HuCards.add(action.card);
-                                await this.huTiles.add(action.card);
-                                this.players[i].credit += Math.pow(2, tai);
-                                commandIdx.huIdx = i;
-                                fail = true;
-                                break;
-                            }
-                        }
+                const PromiseArray = new Array<any>(4);
+                const act: IAction = { command: CommandType.NONE, card: new Card(-1, -1), score: 0 };
+                PromiseArray[0] = System.DelayValue(0, act);
+
+                for (let i = 1; i < 4; i++) {
+                    const id = (i + currentIdx) % 4;
+                    const tai = this.players[id].checkHu(action.card);
+                    if (tai) {
+                        const cards = new Map<CommandType, Card[]>();
+                        cards.set(CommandType.COMMAND_HU, new Array<Card>());
+                        cards.get(CommandType.COMMAND_HU).push(action.card);
+                        PromiseArray[i] = this.players[id].OnCommand(cards, CommandType.COMMAND_HU, (4 + currentIdx - id) % 4);
+                    }
+                }
+
+                const actionSet = await Promise.all(PromiseArray);
+                for (let i = 1; i < 4; i++) {
+                    const id = (i + currentIdx) % 4;
+                    const action = actionSet[i];
+                    if (act.command & CommandType.COMMAND_HU) {
+                        const tai = this.players[id].checkHu(action.card);
+                        this.players[currentIdx].Door.sub(action.card);
+                        this.players[currentIdx].VisiableDoor.sub(action.card);
+                        this.players[currentIdx].credit -= Math.pow(2, tai);
+                        this.players[id].HuCards.add(action.card);
+                        this.huTiles.add(action.card);
+                        this.players[id].credit += Math.pow(2, tai);
+                        commandIdx.huIdx = id;
+                        fail = true;
                     }
                 }
             } else if (!(action.command & CommandType.COMMAND_ZIMO) && !(action.command & CommandType.COMMAND_ONGON)) {
@@ -150,7 +166,7 @@ export default class Room {
                     this.players[commandIdx.ponIdx].OnFail(action.command);
                 }
             } else if (commandIdx.gonIdx !== -1) {
-                await this.players[commandIdx.gonIdx].Gon(throwCard);
+                this.players[commandIdx.gonIdx].Gon(throwCard);
                 this.players[currentIdx].credit -= 2;
                 this.players[commandIdx.gonIdx].credit += 2;
                 this.players[commandIdx.gonIdx].gonRecord[currentIdx] += 2;
@@ -160,7 +176,7 @@ export default class Room {
                     this.players[commandIdx.ponIdx].OnFail(action.command);
                 }
             } else if (commandIdx.ponIdx !== -1) {
-                await this.players[commandIdx.ponIdx].Pon(throwCard);
+                this.players[commandIdx.ponIdx].Pon(throwCard);
                 currentIdx = commandIdx.ponIdx;
                 onlyThrow = true;
                 this.players[commandIdx.ponIdx].OnSuccess(currentIdx, CommandType.COMMAND_PON, throwCard, 0);
@@ -168,45 +184,48 @@ export default class Room {
                 currentIdx = currentIdx;
             } else {
                 if (throwCard.color > 0) {
-                    await this.discardTiles.add(throwCard);
+                    this.discardTiles.add(throwCard);
                 }
                 currentIdx = (currentIdx + 1) % 4;
             }
-            if (await this.Deck.isEmpty()) {
+            if (this.Deck.isEmpty()) {
                 gameover = true;
             }
         }
-        if (await this.HuUnder2()) {
-            await this.LackPenalty();
-            await this.NoTingPenalty();
-            await this.ReturnMoney();
+        if (this.HuUnder2()) {
+            this.LackPenalty();
+            this.NoTingPenalty();
+            this.ReturnMoney();
         }
         this.End();
     }
 
-    private async Init(): Promise<void> {
+    private Init(): void {
         this.Deck         = new Cards(true);
         this.discardTiles = new Cards();
         this.huTiles      = new Cards();
 
-        let len = await this.Deck.Count();
+        let len = this.Deck.Count();
         for (const player of this.players) {
             player.Init();
             for (let j = 0; j < 13; j++) {
                 const idx = ~~(Math.random() * len);
-                const result = await this.Deck.at(idx);
-                await this.Deck.sub(result);
-                await player.Hand.add(result);
+                const result = this.Deck.at(idx);
+                this.Deck.sub(result);
+                player.Hand.add(result);
                 len -= 1;
             }
-            player.socket.emit("dealCard", await player.Hand.toStringArray());
+            player.socket.emit("dealCard", player.Hand.toStringArray());
         }
     }
 
     private async ChangeCard(): Promise<void> {
+        const promiseArray = new Array<any>(4);
         for (const idx in this.players) {
-            this.changedTiles[idx] = await this.players[idx].ChangeCard();
+            promiseArray[idx] = this.players[idx].ChangeCard();
         }
+        this.changedTiles = await Promise.all(promiseArray);
+
         const rand = ~~(Math.random() * 3);
         let tmp: Card[];
         if (rand === 0) {
@@ -228,114 +247,129 @@ export default class Room {
                 this.changedTiles[i + 2] = tmp;
             }
         }
+
         for (const idx in this.players) {
-            await this.players[idx].Hand.add(this.changedTiles[idx]);
-            const t = await Cards.CardArrayToCards(this.changedTiles[idx]);
-            this.players[idx].socket.emit("afterChange", await t.toStringArray(), rand);
+            this.players[idx].Hand.add(this.changedTiles[idx]);
+            const t = Cards.CardArrayToCards(this.changedTiles[idx]);
+            this.players[idx].socket.emit("afterChange", t.toStringArray(), rand);
         }
     }
 
     private async ChooseLack(): Promise<void> {
+        const promiseArray = new Array<any>(4);
         for (const idx in this.players) {
-            this.choosedLack[idx] = await this.players[idx].ChooseLack();
+            promiseArray[idx] = this.players[idx].ChooseLack();
         }
+        this.choosedLack = await Promise.all(promiseArray);
         this.io.to(this.name).emit("afterLack", this.choosedLack);
     }
 
     private async CheckOthers(currentIdx: number, throwCard: Card, commandIdx: ICommandIdx): Promise<ICommandIdx> {
-        for (let playerIdx = 0; playerIdx < 4; playerIdx++) {
-            if (playerIdx !== currentIdx) {
-                const actions = new Map<CommandType, Card[]>();
-                actions.set(CommandType.COMMAND_HU,  new Array<Card>());
-                actions.set(CommandType.COMMAND_GON, new Array<Card>());
-                actions.set(CommandType.COMMAND_PON, new Array<Card>());
-                const other_player = this.players[playerIdx];
-                let tai = 0;
-                let command = 0;
+        let action: IAction = { command: CommandType.NONE, card: throwCard, score: 0 };
+        const PromiseArray = new Array<any>(4);
+        PromiseArray[0] = System.DelayValue(0, action);
 
-                let action: IAction = { command: CommandType.NONE, card: throwCard, score: 0 };
+        for (let i = 1; i < 4; i++) {
+            const playerIdx = (i + currentIdx) % 4;
+            const actions = new Map<CommandType, Card[]>();
+            actions.set(CommandType.COMMAND_HU,  new Array<Card>());
+            actions.set(CommandType.COMMAND_GON, new Array<Card>());
+            actions.set(CommandType.COMMAND_PON, new Array<Card>());
+            const other_player = this.players[playerIdx];
 
-                tai = await other_player.checkHu(throwCard);
-                if (tai) {
-                    if (!other_player.isHu) {
-                        command |= CommandType.COMMAND_HU;
-                        actions.get(CommandType.COMMAND_HU).push(throwCard);
-                    }
+            let command = 0;
+            action = { command: CommandType.NONE, card: throwCard, score: 0 };
+
+            const tai = other_player.checkHu(throwCard);
+            if (tai) {
+                if (!other_player.isHu) {
+                    command |= CommandType.COMMAND_HU;
+                    actions.get(CommandType.COMMAND_HU).push(throwCard);
                 }
+            }
 
-                if ((await other_player.Hand.values[throwCard.color].getIndex(throwCard.value)) === 3) {
-                    if (other_player.checkGon(throwCard)) {
-                        command |= CommandType.COMMAND_GON;
-                        actions.get(CommandType.COMMAND_GON).push(throwCard);
-                    }
+            if (other_player.Hand.values[throwCard.color].getIndex(throwCard.value) === 3) {
+                if (other_player.checkGon(throwCard)) {
+                    command |= CommandType.COMMAND_GON;
+                    actions.get(CommandType.COMMAND_GON).push(throwCard);
                 }
+            }
 
-                if (await other_player.checkPon(throwCard)) {
-                    command |= CommandType.COMMAND_PON;
-                    actions.get(CommandType.COMMAND_PON).push(throwCard);
+            if (other_player.checkPon(throwCard)) {
+                command |= CommandType.COMMAND_PON;
+                actions.get(CommandType.COMMAND_PON).push(throwCard);
+            }
+
+            if (command === CommandType.NONE) {
+                action.command = CommandType.NONE;
+                PromiseArray[i] = System.DelayValue(0, action);
+            } else if (other_player.isHu) {
+                if (command & CommandType.COMMAND_HU) {
+                    action.command  = CommandType.COMMAND_HU;
+                    action.card = throwCard;
+                } else if (command & CommandType.COMMAND_GON) {
+                    action.command  = CommandType.COMMAND_GON;
+                    action.card = throwCard;
                 }
+                PromiseArray[i] = System.DelayValue(0, action);
+            } else {
+                PromiseArray[i] = other_player.OnCommand(actions, command, ((4 + currentIdx - other_player.ID) % 4));
+            }
+        }
+        const actionSet = await Promise.all(PromiseArray);
 
-                if (command === CommandType.NONE) {
-                    action.command = CommandType.NONE;
-                } else if (other_player.isHu) {
-                    if (command & CommandType.COMMAND_HU) {
-                        action.command  = CommandType.COMMAND_HU;
-                        action.card = throwCard;
-                    } else if (command & CommandType.COMMAND_GON) {
-                        action.command  = CommandType.COMMAND_GON;
-                        action.card = throwCard;
-                    }
+        for (let i = 1; i < 4; i++) {
+            const playerIdx = (i + currentIdx) % 4;
+            const other_player = this.players[playerIdx];
+            action = actionSet[i];
+            const tai = other_player.checkHu(throwCard);
+
+            if (action.command & CommandType.COMMAND_HU) {
+                other_player.isHu = true;
+                other_player.HuCards.add(action.card);
+                if (commandIdx.huIdx === -1) {
+                    this.huTiles.add(action.card);
+                }
+                commandIdx.huIdx = playerIdx;
+                const score = Math.pow(2, (tai + Number(this.players[currentIdx].justGon)) - 1);
+                other_player.credit += score;
+                if (other_player.maxTai < tai) {
+                    other_player.maxTai = tai;
+                }
+                this.players[currentIdx].credit -= score;
+                other_player.OnSuccess(currentIdx, CommandType.COMMAND_HU, action.card, score);
+            } else if (action.command & CommandType.COMMAND_GON) {
+                if (commandIdx.huIdx === -1 && commandIdx.gonIdx === -1) {
+                    commandIdx.gonIdx = playerIdx;
                 } else {
-                    action = await other_player.OnCommand(actions, command, ((4 + currentIdx - other_player.ID) % 4));
+                    other_player.OnFail(action.command);
                 }
-
-                if (action.command & CommandType.COMMAND_HU) {
-                    other_player.isHu = true;
-                    await other_player.HuCards.add(action.card);
-                    if (commandIdx.huIdx === -1) {
-                        this.huTiles.add(action.card);
-                    }
-                    commandIdx.huIdx = playerIdx;
-                    const score = Math.pow(2, (tai + Number(this.players[currentIdx].justGon)) - 1);
-                    other_player.credit += score;
-                    if (other_player.maxTai < tai) {
-                        other_player.maxTai = tai;
-                    }
-                    this.players[currentIdx].credit -= score;
-                    other_player.OnSuccess(currentIdx, CommandType.COMMAND_HU, action.card, score);
-                } else if (action.command & CommandType.COMMAND_GON) {
-                    if (commandIdx.huIdx === -1 && commandIdx.gonIdx === -1) {
-                        commandIdx.gonIdx = playerIdx;
-                    } else {
-                        other_player.OnFail(action.command);
-                    }
-                } else if (action.command & CommandType.COMMAND_PON) {
-                    if (commandIdx.huIdx === -1 && commandIdx.gonIdx === -1 && commandIdx.ponIdx === -1) {
-                        commandIdx.ponIdx = playerIdx;
-                    } else {
-                        other_player.OnFail(action.command);
-                    }
+            } else if (action.command & CommandType.COMMAND_PON) {
+                if (commandIdx.huIdx === -1 && commandIdx.gonIdx === -1 && commandIdx.ponIdx === -1) {
+                    commandIdx.ponIdx = playerIdx;
+                } else {
+                    other_player.OnFail(action.command);
                 }
             }
         }
         return commandIdx;
     }
 
-    private async HuUnder2(): Promise<boolean> {
+    private HuUnder2(): boolean {
         for (let i = 0; i < 4; i++) {
             if (!this.players[i].isHu) {
-                this.players[i].maxTai = await this.players[i].checkTing();
+                this.players[i].maxTai = this.players[i].checkTing();
                 this.players[i].isTing = this.players[i].maxTai > 0;
             }
         }
         return true;
     }
 
-    private async LackPenalty(): Promise<void> {
+    private LackPenalty(): void {
         for (let i = 0; i < 4; i++) {
-            if (await this.players[i].Hand.containColor(this.players[i].lack)) {
+            if (this.players[i].Hand.containColor(this.players[i].lack)) {
                 for (let j = 0; j < 4; j++) {
-                    if (((await this.players[j].Hand.values[this.players[j].lack].Count()) === 0) && i !== j) {
+                    if ((this.players[j].Hand.values[this.players[j].lack].Count() === 0) && i !== j) {
                         this.players[j].credit += 16;
                         this.players[i].credit -= 16;
                     }
@@ -344,7 +378,7 @@ export default class Room {
         }
     }
 
-    private async NoTingPenalty(): Promise<void> {
+    private NoTingPenalty(): void {
         for (let i = 0; i < 4; i++) {
             if (!this.players[i].isTing && !this.players[i].isHu) {
                 for (let j = 0; j < 4; j++) {
@@ -357,7 +391,7 @@ export default class Room {
         }
     }
 
-    private async ReturnMoney(): Promise<void> {
+    private ReturnMoney(): void {
         for (let i = 0; i < 4; i++) {
             if (!this.players[i].isTing && !this.players[i].isHu) {
                 for (let j = 0; j < 4; j++) {
@@ -370,10 +404,10 @@ export default class Room {
         }
     }
 
-    private async End(): Promise<void> {
+    private End(): void {
         const data = [];
         for (const player of this.players) {
-            data.push({ hand: await player.Hand.toStringArray(), score: player.credit });
+            data.push({ hand: player.Hand.toStringArray(), score: player.credit });
         }
         this.io.to(this.name).emit("end", data);
     }

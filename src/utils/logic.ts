@@ -8,7 +8,7 @@ export enum CommandType {
     COMMAND_ZIMO   = 0b0100000, // 自摸
 }
 
-export async function InitHuTable(): Promise<boolean> {
+export function InitHuTable(): boolean {
     let i;
     if (!g_data) {
         return false;
@@ -23,21 +23,21 @@ export async function InitHuTable(): Promise<boolean> {
     for (i = 0; i < 9; i++) {
         g_eye.push(2 << i * 3);
     }
-    await B01(4, 0, SIZE);
-    await B2(4, 0, 1);
-    await B3(7, 0, 1);
-    await B4();
-    await B5(4, 0, 1);
-    await B6();
-    await B7();
-    await B8(4, 0, SIZE);
-    await B9UP();
-    await T();
+    B01(4, 0, SIZE);
+    B2(4, 0, 1);
+    B3(7, 0, 1);
+    B4();
+    B5(4, 0, 1);
+    B6();
+    B7();
+    B8(4, 0, SIZE);
+    B9UP();
+    T();
     console.log("Initialization Completed!");
     return true;
 }
 
-export async  function SSJ(hand: number, door: number): Promise<number> {
+export function SSJ(hand: number, door: number): number {
     const idx = (((g_data[hand & 134217727] | 4) &
         (g_data[hand >> 27] | 4) &
         (g_data[door & 134217727] | 64) &
@@ -55,7 +55,7 @@ const g_data:  number[] = new Array<number>(MAX);
 const g_group: number[] = [];
 const g_eye:   number[] = [];
 
-async function have(m: number, s: number): Promise<boolean> {
+function have(m: number, s: number): boolean {
     let i;
     for (i = 0; i < 9; i++) {
         if (((m >> i * 3) & 7) < ((s >> i * 3) & 7)) {
@@ -66,25 +66,25 @@ async function have(m: number, s: number): Promise<boolean> {
     return true;
 }
 
-async function B01(n: number, d: number, p: number): Promise<void> {
+function B01(n: number, d: number, p: number): void {
     let i;
     if (n) {
         for (i = 0; i < 17; i++) {
-            if (await have(p, g_group[i])) {
-                await B01(n - 1, d + g_group[i], p - g_group[i]);
+            if (have(p, g_group[i])) {
+                B01(n - 1, d + g_group[i], p - g_group[i]);
             }
         }
     } else {
         g_data[d] |= 1;
         for (i = 0; i < 9; i++) {
-            if (await have(p, g_eye[i])) {
+            if (have(p, g_eye[i])) {
                 g_data[d + g_eye[i]] |= 2;
             }
         }
     }
 }
 
-async function B2(n: number, d: number, c: number): Promise<void> {
+function B2(n: number, d: number, c: number): void {
     let i;
     g_data[d] |= 4;
     g_data[d] |= 32;
@@ -93,13 +93,13 @@ async function B2(n: number, d: number, c: number): Promise<void> {
     }
     if (n) {
         for (i = c; i <= 9; i++) {
-            await B2(n - 1, d + g_group[i], i + 1);
-            await B2(n - 1, d + g_group[i] / 3 * 4, i + 1);
+            B2(n - 1, d + g_group[i], i + 1);
+            B2(n - 1, d + g_group[i] / 3 * 4, i + 1);
         }
     }
 }
 
-async function B3(n: number, d: number, c: number): Promise<void> {
+function B3(n: number, d: number, c: number): void {
     let i;
     g_data[d] |= 8;
     if (n) {
@@ -110,26 +110,26 @@ async function B3(n: number, d: number, c: number): Promise<void> {
     }
 }
 
-async function B4(): Promise<void> {
+function B4(): void {
     g_data[0] |= 16;
 }
 
-async function B5(n: number, d: number, c: number): Promise<void> {
+function B5(n: number, d: number, c: number): void {
     let i;
     g_data[d] |= 32;
     for (i = 0; i < 9; i++) {
-        if (await have(SIZE - d, g_eye[i])) {
+        if (have(SIZE - d, g_eye[i])) {
             g_data[d + g_eye[i]] |= 32;
         }
     }
     if (n) {
         for (i = c; i <= 9; i++) {
-            await B5(n - 1, d + g_group[i], i + 1);
+            B5(n - 1, d + g_group[i], i + 1);
         }
     }
 }
 
-async function B6(): Promise<void> {
+function B6(): void {
     let i;
     g_data[0] |= 64;
     for (i = 0; i < 9; i++) {
@@ -137,7 +137,7 @@ async function B6(): Promise<void> {
     }
 }
 
-async function B7(): Promise<void> {
+function B7(): void {
     let i;
     for (i = 0; i < SIZE; i++) {
         if ((i & 119508935) === 0) {
@@ -146,25 +146,25 @@ async function B7(): Promise<void> {
     }
 }
 
-async function B8(n: number, d: number, p: number): Promise<void> {
+function B8(n: number, d: number, p: number): void {
     let i;
     if (n) {
         for (i = 0; i < 17; i++) {
-            if (await have(p, g_group[i]) && (i === 0 || i === 1 || i === 9 || i === 10 || i === 16)) {
-                await B8(n - 1, d + g_group[i], p - g_group[i]);
+            if (have(p, g_group[i]) && (i === 0 || i === 1 || i === 9 || i === 10 || i === 16)) {
+                B8(n - 1, d + g_group[i], p - g_group[i]);
             }
         }
     } else {
         g_data[d] |= 256;
         for (i = 0; i < 9; i++) {
-            if (await have(p, g_eye[i]) && (i === 0 || i === 8)) {
+            if (have(p, g_eye[i]) && (i === 0 || i === 8)) {
                 g_data[d + g_eye[i]] |= 256;
             }
         }
     }
 }
 
-async function B9UP(): Promise<void> {
+function B9UP(): void {
     let i;
     let j;
     let k;
@@ -182,7 +182,7 @@ async function B9UP(): Promise<void> {
     }
 }
 
-async function T(): Promise<void> {
+function T(): void {
     let i;
     let k;
     for (i = 0; i < 4095; i++) {
