@@ -1,6 +1,7 @@
 {
   "extends":["tslint:recommended"],
   "rules": {
+    "no-eval": false,
     "variable-name": false,
     "forin": false,
     "no-bitwise": false,
