@@ -1,21 +1,18 @@
 /**
  * Module dependencies.
  */
-import * as bodyParser from "body-parser";
-import * as errorHandler from "errorhandler";
 import * as express from "express";
-import * as path from "path";
-import * as socketIO from "socket.io";
-import expressValidator = require("express-validator");
 import * as http from "http";
+import * as socketIO from "socket.io";
 
-import * as logic from "./utils/logic";
+import { GameManager } from "./utils/gameManager";
 import Room from "./utils/room";
-import {roomManager as RoomManager} from "./utils/roomManager";
 import * as System from "./utils/System";
 
 async function main(): Promise<void> {
-    await logic.InitHuTable();
+    const game = new GameManager();
+
+    await game.InitHuTable();
 
     const app = express();
     app.set("port", process.env.PORT || 3000);
@@ -29,9 +26,9 @@ async function main(): Promise<void> {
         // join room ----------------------------------------------------------------------------------
         // region
         socket.on("playerLogin", (room: string, callback: any) => {
-            if (typeof RoomManager.get(room) !== "undefined") {
-                const roomPlayer = RoomManager.get(room).numPlayer;
-                if (roomPlayer >= 4) {
+            if (typeof game.rooms.get(room) !== "undefined") {
+                const numPlayer = game.rooms.get(room).numPlayer;
+                if (numPlayer >= 4) {
                     callback("Room is Full");
                 }
             }
@@ -44,11 +41,12 @@ async function main(): Promise<void> {
             const username = params.Username;
             let room: Room;
 
-            if (typeof RoomManager.get(params.Room) === "undefined") {
-                room = RoomManager.createRoom(params.Room);
+            if (typeof game.rooms.get(params.Room) === "undefined") {
+                room = game.createRoom(params.Room);
             } else {
-                room = RoomManager.get(params.Room);
+                room = game.rooms.get(params.Room);
             }
+
             if (room.numPlayer >= 4) { // validasi room pentuh waktu maksa masukin url
                 return callback("Room is Full");
             }
@@ -77,8 +75,8 @@ async function main(): Promise<void> {
         socket.on("login", (id: number, room: string, callback: any) => {
             socket.join(room);
             try {
-                RoomManager.get(room).io = io;
-                RoomManager.get(room).players[id].socket = socket;
+                game.rooms.get(room).io = io;
+                game.rooms.get(room).players[id].socket = socket;
             } catch (e) {
                 console.log(e);
                 callback(e);

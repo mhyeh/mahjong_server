@@ -1,6 +1,6 @@
 import * as SocketIO from "socket.io";
-import {Card, Cards} from "./card";
-import {CommandType} from "./logic";
+import { Card, Cards } from "./card";
+import { CommandType, GameManager } from "./gameManager";
 import Player, { IAction } from "./player";
 import * as System from "./System";
 
@@ -13,6 +13,8 @@ export default class Room {
     public huTiles:      Cards;
 
     public io: SocketIO.Server;
+
+    private game:   GameManager;
 
     private name:   string;
     private amount: number;
@@ -36,14 +38,15 @@ export default class Room {
         return -1;
     }
 
-    constructor(name: string) {
+    constructor(game: GameManager, name: string) {
+        this.game = game;
         this.name = name;
         this.amount = 0;
     }
 
     public addPlayer(name: string, room: string): number {
         const id = this.nextSeat;
-        this.players[id] = new Player(id, name, room);
+        this.players[id] = new Player(this.game, id, name, room);
         this.seat[id] = true;
         this.amount++;
         const playerList = this.getPlayerList();
@@ -84,7 +87,11 @@ export default class Room {
     }
 
     public broadcastCommand(from: number, to: number, command: CommandType, card: Card, score: number): void {
-        this.io.to(this.name).emit("othersCommand", from, to, command, card.toString(), score);
+        if (command === CommandType.COMMAND_ONGON) {
+            this.io.to(this.name).emit("othersCommand", from, to, command, "", score);
+        } else {
+            this.io.to(this.name).emit("othersCommand", from, to, command, card.toString(), score);
+        }
     }
 
     public async Run(): Promise<void> {

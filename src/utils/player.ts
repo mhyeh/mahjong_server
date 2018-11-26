@@ -1,7 +1,6 @@
 import * as socketIO from "socket.io";
-import {Card, Cards} from "./card";
-import {CommandType, SSJ} from "./logic";
-import {roomManager as RoomManager} from "./RoomManager";
+import { Card, Cards } from "./card";
+import { CommandType, GameManager } from "./gameManager";
 import * as System from "./System";
 
 export default class Player {
@@ -22,6 +21,7 @@ export default class Player {
 
     public socket: socketIO.Socket;
 
+    private game: GameManager;
     private id:   number;
     private name: string;
     private room: string;
@@ -38,8 +38,9 @@ export default class Player {
         return this.room;
     }
 
-    constructor(id: number, name: string, room: string) {
-        this.id = id;
+    constructor(game: GameManager, id: number, name: string, room: string) {
+        this.game = game;
+        this.id   = id;
         this.name = name;
         this.room = room;
     }
@@ -66,7 +67,7 @@ export default class Player {
     }
 
     public checkGon(card: Card): boolean {
-        if (card.color === this.lack || RoomManager.get(this.room).Deck.isEmpty()) {
+        if (card.color === this.lack || this.game.rooms.get(this.room).Deck.isEmpty()) {
             return false;
         }
 
@@ -75,13 +76,13 @@ export default class Player {
         }
 
         const handCount = this.Hand.values[card.color].getIndex(card.value);
-        const oldTai = SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
+        const oldTai = this.game.SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
 
         for (let i = 0; i < handCount; i++) {
             this.Hand.sub(card);
             this.Door.add(card);
         }
-        let newTai = SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
+        let newTai = this.game.SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
         if (newTai > 0) {
             newTai -= 1;
         }
@@ -105,7 +106,7 @@ export default class Player {
         if ((this.Hand.values[this.lack].Count()) > 0) {
             return 0;
         }
-        tai = SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
+        tai = this.game.SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
         return tai;
     }
 
@@ -117,7 +118,7 @@ export default class Player {
         for (let i = 0; i < 18; i++) {
             if (((total >> (i * 3)) & 7) < 4) {
                 const newHand = t_Hand + (1 << (i * 3));
-                const tai = SSJ(newHand, t_Door);
+                const tai = this.game.SSJ(newHand, t_Door);
                 if (tai > max) {
                     max = tai;
                 }
@@ -161,7 +162,7 @@ export default class Player {
 
     public Tai(card: Card): number {
         this.Hand.add(card);
-        const result = SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
+        const result = this.game.SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
         this.Hand.sub(card);
         return result;
     }
@@ -196,23 +197,25 @@ export default class Player {
         const delay = System.DelayValue(waitingTime, defaultCard);
         const card = await Promise.race([delay, throwByClient]);
         this.Hand.sub(card);
-        RoomManager.get(this.room).broadcastThrow(this.id, card);
+        this.game.rooms.get(this.room).broadcastThrow(this.id, card);
         return card;
     }
 
-    public async Draw(throwCard: Card): Promise<IAction> {
+    public async Draw(drawCard: Card): Promise<IAction> {
         const actions = new Map<CommandType, Card[]>();
         actions.set(CommandType.COMMAND_ZIMO,   new Array<Card>());
         actions.set(CommandType.COMMAND_ONGON,  new Array<Card>());
         actions.set(CommandType.COMMAND_PONGON, new Array<Card>());
         let tai = 0;
         let command = 0;
-        this.Hand.add(throwCard);
+        this.Hand.add(drawCard);
+
+        this.socket.emit("draw", drawCard.toString());
 
         tai = this.checkHu();
         if (tai) {
             command |= CommandType.COMMAND_ZIMO;
-            actions.get(CommandType.COMMAND_ZIMO).push(throwCard);
+            actions.get(CommandType.COMMAND_ZIMO).push(drawCard);
         }
         for (let c = 0; c < 3; c++) {
             for (let v = 0; v < 9; v++) {
@@ -231,10 +234,10 @@ export default class Player {
             }
         }
 
-        let action: IAction = { command: CommandType.NONE, card: throwCard, score: 0 };
+        let action: IAction = { command: CommandType.NONE, card: drawCard, score: 0 };
         if (command === CommandType.NONE) {
             action.command = CommandType.NONE;
-            action.card = throwCard;
+            action.card = drawCard;
         } else if (this.isHu) {
             if (command & CommandType.COMMAND_ZIMO) {
                 action.command = CommandType.COMMAND_ZIMO;
@@ -253,7 +256,7 @@ export default class Player {
         if (action.command & CommandType.COMMAND_ZIMO) {
             this.isHu = true;
             this.HuCards.sub(action.card);
-            RoomManager.get(this.room).huTiles.add(action.card);
+            this.game.rooms.get(this.room).huTiles.add(action.card);
             this.Hand.sub(action.card);
             action.card.color = -1;
             const score = Math.pow(2, tai + Number(this.justGon));
@@ -264,7 +267,7 @@ export default class Player {
                     if (this.maxTai < tai) {
                         this.maxTai = tai;
                     }
-                    RoomManager.get(this.room).players[i].credit -= score;
+                    this.game.rooms.get(this.room).players[i].credit -= score;
                 }
             }
         } else if (action.command & CommandType.COMMAND_ONGON) {
@@ -287,7 +290,7 @@ export default class Player {
             }
         } else {
             if (this.isHu) {
-                action.card = throwCard;
+                action.card = drawCard;
             } else {
                 action.card = await this.ThrowCard();
             }
@@ -307,7 +310,7 @@ export default class Player {
 
         const defaultCommand: IAction = { command: CommandType.NONE, card: new Card(-1, -1), score: 0 };
         const waitingTime = 100000;
-        this.socket.emit("command", map, command, waitingTime);
+        this.socket.emit("command", JSON.stringify([...map]), command, waitingTime);
         const commandByClient = this.waitForCommand();
         const delay = System.DelayValue(waitingTime, defaultCommand);
         const action = await Promise.race([delay, commandByClient]);
@@ -320,7 +323,7 @@ export default class Player {
 
     public OnSuccess(from: number, command: CommandType, card: Card, score: number): void {
         this.socket.emit("success", from, command, card.toString(), score);
-        RoomManager.get(this.room).broadcastCommand(from, this.id, command, card, score);
+        this.game.rooms.get(this.room).broadcastCommand(from, this.id, command, card, score);
     }
 
     private defaultChangeCard(): Card[] {
