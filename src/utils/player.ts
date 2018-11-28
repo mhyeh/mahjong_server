@@ -176,6 +176,7 @@ export default class Player {
         const delay = System.DelayValue(waitingTime, defaultChange);
         const changeCards = await Promise.race([delay, changeByClient]);
         this.Hand.sub(changeCards);
+        this.game.rooms.get(this.room).broadcastChange(this.id);
         return changeCards;
     }
 

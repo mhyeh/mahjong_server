@@ -82,6 +82,14 @@ export default class Room {
         return nameList;
     }
 
+    public broadcastChange(id: number): void {
+        this.io.to(this.name).emit("othersChange", id);
+    }
+
+    public broadcastDraw(id: number): void {
+        this.io.to(this.name).emit("othersDraw", id);
+    }
+
     public broadcastThrow(id: number, card: Card): void {
         this.io.to(this.name).emit("othersThrow", id, card.toString());
     }
@@ -114,6 +122,7 @@ export default class Room {
                 onlyThrow = false;
             } else {
                 const drawCard = this.Deck.Draw();
+                this.broadcastDraw(currentIdx);
                 action = await this.players[currentIdx].Draw(drawCard);
                 throwCard = action.card;
             }
