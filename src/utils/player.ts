@@ -170,7 +170,7 @@ export default class Player {
     public async ChangeCard(): Promise<Card[]> {
         const defaultChange = this.defaultChangeCard();
         const t = Cards.CardArrayToCards(defaultChange);
-        const waitingTime = 300000;
+        const waitingTime = 30 * System.sec;
         this.socket.emit("change", t.toStringArray(), waitingTime);
         const changeByClient = this.waitForChangeCard();
         const delay = System.DelayValue(waitingTime, defaultChange);
@@ -182,7 +182,7 @@ export default class Player {
 
     public async ChooseLack(): Promise<number> {
         const defaultLack = 0;
-        const waitingTime = 100000;
+        const waitingTime = 10 * System.sec;
         this.socket.emit("lack", defaultLack, waitingTime);
         const chooseByClient = this.waitForChooseLack();
         const delay = System.DelayValue(waitingTime, defaultLack);
@@ -192,7 +192,7 @@ export default class Player {
 
     public async ThrowCard(): Promise<Card> {
         const defaultCard = this.Hand.at(0);
-        const waitingTime = 100000;
+        const waitingTime = 10 * System.sec;
         this.socket.emit("throw", defaultCard.toString(), waitingTime);
         const throwByClient = this.waitForThrowCard();
         const delay = System.DelayValue(waitingTime, defaultCard);
@@ -310,7 +310,7 @@ export default class Player {
         }
 
         const defaultCommand: IAction = { command: CommandType.NONE, card: new Card(-1, -1), score: 0 };
-        const waitingTime = 100000;
+        const waitingTime = 10 * System.sec;
         this.socket.emit("command", JSON.stringify([...map]), command, waitingTime);
         const commandByClient = this.waitForCommand();
         const delay = System.DelayValue(waitingTime, defaultCommand);

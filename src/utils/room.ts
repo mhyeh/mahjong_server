@@ -104,9 +104,9 @@ export default class Room {
 
     public async Run(): Promise<void> {
         this.Init();
-        await System.Delay(10000);
+        await System.Delay(3 * System.sec);
         await this.ChangeCard();
-        await System.Delay(10000);
+        await System.Delay(5 * System.sec);
         await this.ChooseLack();
 
         let currentIdx = 0;

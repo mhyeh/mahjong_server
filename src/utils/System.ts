@@ -5,3 +5,5 @@ export function Delay(ms: number): Promise<void> {
 export function DelayValue<T>(ms: number, value: T): Promise<T> {
     return new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
 }
+
+export const sec = 1000;

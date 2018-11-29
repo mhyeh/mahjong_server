@@ -64,7 +64,7 @@ async function main(): Promise<void> {
 
             // ----------------------- EVENT 2. RETURN CALLBACK GAME START -----------------------
             if (room.numPlayer === 4) {
-                await System.Delay(10000);
+                await System.Delay(5 * System.sec);
                 room.Run();
             }
             callback(); // gak ngasih apa-apa karna ga error
