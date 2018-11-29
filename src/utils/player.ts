@@ -103,10 +103,19 @@ export default class Player {
 
     public checkHu(card: Card = new Card(-1, -1)): number {
         let tai = 0;
-        if ((this.Hand.values[this.lack].Count()) > 0) {
+        if (this.Hand.values[this.lack].Count() > 0) {
             return 0;
         }
-        tai = this.game.SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
+        if (card.color === -1) {
+            tai = this.game.SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
+        } else {
+            if (card.color === this.lack) {
+                return 0;
+            }
+            this.Hand.add(card);
+            tai = this.game.SSJ(this.Hand.Translate(this.lack), this.Door.Translate(this.lack));
+            this.Hand.sub(card);
+        }
         return tai;
     }
 
