@@ -83,22 +83,22 @@ export default class Room {
     }
 
     public broadcastChange(id: number): void {
-        this.io.to(this.name).emit("othersChange", id);
+        this.io.to(this.name).emit("broadcastChange", id);
     }
 
     public broadcastDraw(id: number): void {
-        this.io.to(this.name).emit("othersDraw", id);
+        this.io.to(this.name).emit("broadcastDraw", id);
     }
 
     public broadcastThrow(id: number, card: Card): void {
-        this.io.to(this.name).emit("othersThrow", id, card.toString());
+        this.io.to(this.name).emit("broadcastThrow", id, card.toString());
     }
 
     public broadcastCommand(from: number, to: number, command: CommandType, card: Card, score: number): void {
         if (command === CommandType.COMMAND_ONGON) {
-            this.io.to(this.name).emit("othersCommand", from, to, command, "", score);
+            this.io.to(this.name).emit("broadcastCommand", from, to, command, "", score);
         } else {
-            this.io.to(this.name).emit("othersCommand", from, to, command, card.toString(), score);
+            this.io.to(this.name).emit("broadcastCommand", from, to, command, card.toString(), score);
         }
     }
 
