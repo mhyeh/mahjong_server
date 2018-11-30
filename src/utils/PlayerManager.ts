@@ -38,7 +38,7 @@ export class PlayerManager {
         return this.playerList;
     }
 
-    private playerList: IPlayer[];
+    private playerList: IPlayer[] = [];
 
     public AddPlayer(_name: string): number | string {
         if (this.FindPlayerByName(_name) !== -1) {
@@ -50,7 +50,7 @@ export class PlayerManager {
     }
 
     public RemovePlayer(id: number) {
-        if (id > 0 && id < this.playerList.length) {
+        if (id >= 0 && id < this.playerList.length) {
             this.playerList.splice(id, 1);
         }
     }
@@ -85,9 +85,6 @@ export class PlayerManager {
         for (const player of this.playerList) {
             if (player.state === state) {
                 list.push(player);
-                if (list.length === 4) {
-                    break;
-                }
             }
         }
         return list;

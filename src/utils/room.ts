@@ -66,8 +66,7 @@ export default class Room {
         const list = this.PlayerManager.FindPlayersInRoom(this.name);
         const nameList = PlayerManager.GetNameList(list);
         for (const player of list) {
-            player.socket.emit("readyToStart", this.name);
-            player.socket.emit("showPlayerList", nameList);
+            player.socket.emit("readyToStart", this.name, nameList);
         }
     }
 
@@ -79,6 +78,7 @@ export default class Room {
         while (this.numPlayer < 4) {
             await System.Delay(0);
         }
+        this.broadcastGameStart();
 
         this.Run();
     }
@@ -88,6 +88,7 @@ export default class Room {
         const player = this.PlayerManager.PlayerList[index];
         this.players.push(new Player(this.game, this.numPlayer, player.uuid));
         this.PlayerManager.PlayerList[index].state = STATE.READY;
+        this.broadcastReady(player.name);
         return this.numPlayer - 1;
     }
 
@@ -96,6 +97,14 @@ export default class Room {
         this.players.forEach((player) => nameList.push(player.Name));
 
         return nameList;
+    }
+
+    public broadcastReady(name: string): void {
+        this.io.to(this.name).emit("broadcastReady", name);
+    }
+
+    public broadcastGameStart(): void {
+        this.io.to(this.name).emit("broadcastGameStart", this.getPlayerList());
     }
 
     public broadcastChange(id: number): void {

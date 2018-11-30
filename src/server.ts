@@ -49,9 +49,9 @@ async function main(): Promise<void> {
             callback(id);
         });
 
-        // socket.on("disconnect", () => {
-        //     game.Logout(socket);
-        // });
+        socket.on("disconnect", () => {
+            game.Logout(socket);
+        });
     });
 
     server.listen(3000, () => {

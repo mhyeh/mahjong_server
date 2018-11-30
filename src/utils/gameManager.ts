@@ -52,15 +52,19 @@ export class GameManager {
 
     public Logout(socket: SocketIO.Socket) {
         const index = this.playerManager.FindPlayerBySocket(socket);
-        this.playerManager.RemovePlayer(index);
+        if (this.PlayerList[index].state === STATE.WAITING) {
+            this.playerManager.RemovePlayer(index);
+        }
     }
 
     public async exec() {
         while (1) {
             if (this.lobby.waittingNum >= 4) {
                 this.CreateRoom();
+                await System.Delay(2 * System.sec);
+            } else {
+                await System.Delay(10 * System.sec);
             }
-            await System.Delay(30 * System.sec);
         }
     }
 
