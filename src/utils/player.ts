@@ -1,6 +1,8 @@
 import * as socketIO from "socket.io";
-import { Card, Cards } from "./card";
-import { CommandType, GameManager } from "./gameManager";
+
+import { Card, Cards } from "./Card";
+import { CommandType, GameManager } from "./GameManager";
+import { STATE } from "./PlayerManager";
 import * as System from "./System";
 
 export default class Player {
@@ -19,33 +21,42 @@ export default class Player {
     public isTing:  boolean;
     public justGon: boolean;
 
-    public socket: socketIO.Socket;
-
     private game: GameManager;
     private id:   number;
-    private name: string;
-    private room: string;
+    private uuid: string;
 
     public get ID(): number {
         return this.id;
     }
 
     public get Name(): string {
-        return this.name;
+        const index = this.game.playerManager.FindPlayerByUUID(this.uuid);
+        return this.game.PlayerList[index].name;
     }
 
     public get Room(): string {
-        return this.room;
+        const index = this.game.playerManager.FindPlayerByUUID(this.uuid);
+        return this.game.PlayerList[index].room;
     }
 
-    constructor(game: GameManager, id: number, name: string, room: string) {
+    public get socket(): socketIO.Socket {
+        const index = this.game.playerManager.FindPlayerByUUID(this.uuid);
+        return this.game.PlayerList[index].socket;
+    }
+
+    public get UUID(): string {
+        return this.uuid;
+    }
+
+    constructor(game: GameManager, id: number, uuid: string) {
         this.game = game;
         this.id   = id;
-        this.name = name;
-        this.room = room;
+        this.uuid = uuid;
     }
 
     public Init(): void {
+        const index = this.game.playerManager.FindPlayerByUUID(this.uuid);
+        this.game.PlayerList[index].state = STATE.PLAYING;
         for (let i = 0; i < 3; i++) {
             this.Door.values[i].value = 0;
             this.VisiableDoor.values[i].value = 0;
@@ -67,7 +78,7 @@ export default class Player {
     }
 
     public checkGon(card: Card): boolean {
-        if (card.color === this.lack || this.game.rooms.get(this.room).Deck.isEmpty()) {
+        if (card.color === this.lack || this.game.rooms.get(this.Room).Deck.isEmpty()) {
             return false;
         }
 
@@ -185,7 +196,7 @@ export default class Player {
         const delay = System.DelayValue(waitingTime, defaultChange);
         const changeCards = await Promise.race([delay, changeByClient]);
         this.Hand.sub(changeCards);
-        this.game.rooms.get(this.room).broadcastChange(this.id);
+        this.game.rooms.get(this.Room).broadcastChange(this.id);
         return changeCards;
     }
 
@@ -207,7 +218,7 @@ export default class Player {
         const delay = System.DelayValue(waitingTime, defaultCard);
         const card = await Promise.race([delay, throwByClient]);
         this.Hand.sub(card);
-        this.game.rooms.get(this.room).broadcastThrow(this.id, card);
+        this.game.rooms.get(this.Room).broadcastThrow(this.id, card);
         return card;
     }
 
@@ -266,7 +277,7 @@ export default class Player {
         if (action.command & CommandType.COMMAND_ZIMO) {
             this.isHu = true;
             this.HuCards.sub(action.card);
-            this.game.rooms.get(this.room).huTiles.add(action.card);
+            this.game.rooms.get(this.Room).HuTiles.add(action.card);
             this.Hand.sub(action.card);
             action.card.color = -1;
             const score = Math.pow(2, tai + Number(this.justGon));
@@ -277,7 +288,7 @@ export default class Player {
                     if (this.maxTai < tai) {
                         this.maxTai = tai;
                     }
-                    this.game.rooms.get(this.room).players[i].credit -= score;
+                    this.game.rooms.get(this.Room).players[i].credit -= score;
                 }
             }
         } else if (action.command & CommandType.COMMAND_ONGON) {
@@ -333,7 +344,7 @@ export default class Player {
 
     public OnSuccess(from: number, command: CommandType, card: Card, score: number): void {
         this.socket.emit("success", from, command, card.toString(), score);
-        this.game.rooms.get(this.room).broadcastCommand(from, this.id, command, card, score);
+        this.game.rooms.get(this.Room).broadcastCommand(from, this.id, command, card, score);
     }
 
     private defaultChangeCard(): Card[] {

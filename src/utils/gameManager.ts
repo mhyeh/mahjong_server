@@ -1,4 +1,10 @@
-import Room from "./room";
+import * as socketIO from "socket.io";
+import { v4 } from "uuid";
+
+import Lobby from "./Lobby";
+import { IPlayer, PlayerManager, STATE } from "./PlayerManager";
+import Room from "./Room";
+import * as System from "./System";
 
 export enum CommandType {
     NONE           = 0b0000000,	// 沒有
@@ -12,6 +18,9 @@ export enum CommandType {
 
 export class GameManager {
     public rooms: Map<string, Room> = new Map<string, Room>();
+    public playerManager: PlayerManager = new PlayerManager();
+
+    private lobby: Lobby = new Lobby(this);
 
     private SIZE = 76695844;
     private MAX  = 76699939;
@@ -20,12 +29,51 @@ export class GameManager {
     private g_group: number[] = [];
     private g_eye:   number[] = [];
 
-    public createRoom(name: string): Room {
-        this.rooms.set(name, new Room(this, name));
-        return this.rooms.get(name);
+    public get PlayerList(): IPlayer[] {
+        return this.playerManager.PlayerList;
     }
 
-    public removeRoom(name: string): void {
+    public Login(name: string, socket: socketIO.Socket): number | string {
+        const uuid = this.playerManager.AddPlayer(name);
+        if (typeof uuid === "number") {
+            return -1;
+        }
+        const index = this.playerManager.FindPlayerByUUID(uuid);
+        this.PlayerList[index].socket = socket;
+        this.PlayerList[index].state  = STATE.WAITING;
+        // const uuid = this.lobby.Enter(name, socket);
+
+        // if (this.lobby.waittingNum >= 4) {
+        //     this.CreateRoom();
+        // }
+
+        return uuid;
+    }
+
+    public Logout(socket: SocketIO.Socket) {
+        const index = this.playerManager.FindPlayerBySocket(socket);
+        this.playerManager.RemovePlayer(index);
+    }
+
+    public async exec() {
+        while (1) {
+            if (this.lobby.waittingNum >= 4) {
+                this.CreateRoom();
+            }
+            await System.Delay(30 * System.sec);
+        }
+    }
+
+    public CreateRoom(): void {
+        const roomName = v4();
+        this.rooms.set(roomName, new Room(this, roomName));
+        const matchPlayer = this.lobby.Match();
+        const room = this.rooms.get(roomName);
+        room.addPlayer(matchPlayer);
+        room.waitToStart();
+    }
+
+    public RemoveRoom(name: string): void {
         this.rooms.delete(name);
     }
 

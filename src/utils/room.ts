@@ -1,78 +1,94 @@
 import * as SocketIO from "socket.io";
-import { Card, Cards } from "./card";
-import { CommandType, GameManager } from "./gameManager";
-import Player, { IAction } from "./player";
+
+import { Card, Cards } from "./Card";
+import { CommandType, GameManager } from "./GameManager";
+import Player, { IAction } from "./Player";
+import { PlayerManager, STATE } from "./PlayerManager";
 import * as System from "./System";
 
 export default class Room {
-    public players      = new Array<Player>(4);
+    public players      = new Array<Player>();
     public changedTiles = new Array<Card[]>(4);
     public choosedLack  = new Array<number>(4);
     public Deck:         Cards;
-    public discardTiles: Cards;
-    public huTiles:      Cards;
+    public DiscardTiles: Cards;
+    public HuTiles:      Cards;
 
     public io: SocketIO.Server;
 
     private game:   GameManager;
 
     private name:   string;
-    private amount: number;
-
-    private seat = new Array<boolean>(false, false, false, false);
 
     public get Name(): string {
         return this.name;
     }
 
     public get numPlayer(): number {
-        return this.amount;
-    }
-
-    private get nextSeat(): number {
-        for (let i = 0; i < this.seat.length; i++) {
-            if (!this.seat[i]) {
-                return i;
+        const list = this.PlayerManager.FindPlayersInRoom(this.name);
+        let num = 0;
+        for (const player of list) {
+            if (player.state & (STATE.READY | STATE.PLAYING)) {
+                num++;
             }
         }
-        return -1;
+        return num;
+    }
+
+    public get PlayerManager(): PlayerManager {
+        return this.game.playerManager;
     }
 
     constructor(game: GameManager, name: string) {
         this.game = game;
         this.name = name;
-        this.amount = 0;
     }
 
-    public addPlayer(name: string, room: string): number {
-        const id = this.nextSeat;
-        this.players[id] = new Player(this.game, id, name, room);
-        this.seat[id] = true;
-        this.amount++;
-        const playerList = this.getPlayerList();
-        this.io.to(this.name).emit("updatePlayerList", playerList);
+    // public addPlayer(name: string, room: string, uuid: string): number {
+    //     const id = this.nextSeat;
+    //     this.players[id] = new Player(this.game, id, name, room, uuid);
+    //     this.seat[id] = true;
+    //     this.amount++;
+    //     const playerList = this.getPlayerList();
+    //     this.io.to(this.name).emit("updatePlayerList", playerList);
 
-        if (this.amount === 4) {
-            this.io.to(this.name).emit("storePlayerList", playerList);
+    //     if (this.amount === 4) {
+    //         this.io.to(this.name).emit("storePlayerList", playerList);
+    //     }
+    //     return id;
+    // }
+
+    public addPlayer(playerList: string[]) {
+        for (const uuid of playerList) {
+            const index = this.PlayerManager.FindPlayerByUUID(uuid);
+            this.PlayerManager.PlayerList[index].room = this.name;
         }
-        return id;
+        const list = this.PlayerManager.FindPlayersInRoom(this.name);
+        const nameList = PlayerManager.GetNameList(list);
+        for (const player of list) {
+            player.socket.emit("readyToStart", this.name);
+            player.socket.emit("showPlayerList", nameList);
+        }
     }
 
     public removePlayer(id: number): void {
         this.players.splice(id, 1);
-        this.seat[id] = false;
-        this.amount--;
     }
 
-    public findUser(name: string): boolean {
-        for (let i = 0; i < 4; i++) {
-            if (this.seat[i]) {
-                if (this.players[i].Name === name) {
-                    return true;
-                }
-            }
+    public async  waitToStart() {
+        while (this.numPlayer < 4) {
+            await System.Delay(0);
         }
-        return false;
+
+        this.Run();
+    }
+
+    public Accept(uuid: string): number {
+        const index  = this.PlayerManager.FindPlayerByUUID(uuid);
+        const player = this.PlayerManager.PlayerList[index];
+        this.players.push(new Player(this.game, this.numPlayer, player.uuid));
+        this.PlayerManager.PlayerList[index].state = STATE.READY;
+        return this.numPlayer - 1;
     }
 
     public getPlayerList(): string[] {
@@ -155,7 +171,7 @@ export default class Room {
                         this.players[currentIdx].VisiableDoor.sub(action.card);
                         this.players[currentIdx].credit -= Math.pow(2, tai);
                         this.players[id].HuCards.add(action.card);
-                        this.huTiles.add(action.card);
+                        this.HuTiles.add(action.card);
                         this.players[id].credit += Math.pow(2, tai);
                         commandIdx.huIdx = id;
                         fail = true;
@@ -200,7 +216,7 @@ export default class Room {
                 currentIdx = currentIdx;
             } else {
                 if (throwCard.color > 0) {
-                    this.discardTiles.add(throwCard);
+                    this.DiscardTiles.add(throwCard);
                 }
                 currentIdx = (currentIdx + 1) % 4;
             }
@@ -216,10 +232,14 @@ export default class Room {
         this.End();
     }
 
+    public Stop() {
+        // TODO
+    }
+
     private Init(): void {
         this.Deck         = new Cards(true);
-        this.discardTiles = new Cards();
-        this.huTiles      = new Cards();
+        this.DiscardTiles = new Cards();
+        this.HuTiles      = new Cards();
 
         let len = this.Deck.Count();
         for (const player of this.players) {
@@ -344,7 +364,7 @@ export default class Room {
                 other_player.isHu = true;
                 other_player.HuCards.add(action.card);
                 if (commandIdx.huIdx === -1) {
-                    this.huTiles.add(action.card);
+                    this.HuTiles.add(action.card);
                 }
                 commandIdx.huIdx = playerIdx;
                 const score = Math.pow(2, (tai + Number(this.players[currentIdx].justGon)) - 1);
