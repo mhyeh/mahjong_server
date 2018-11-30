@@ -46,6 +46,10 @@ async function main(): Promise<void> {
             }
 
             const id = game.rooms.get(room).Accept(uuid);
+            if (id === -1) {
+                callback("auth failed");
+                return;
+            }
             callback(id);
         });
 

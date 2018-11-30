@@ -85,6 +85,9 @@ export default class Room {
 
     public Accept(uuid: string): number {
         const index  = this.PlayerManager.FindPlayerByUUID(uuid);
+        if (index === -1) {
+            return -1;
+        }
         const player = this.PlayerManager.PlayerList[index];
         this.players.push(new Player(this.game, this.numPlayer, player.uuid));
         this.PlayerManager.PlayerList[index].state = STATE.READY;

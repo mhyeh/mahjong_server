@@ -52,7 +52,7 @@ export class GameManager {
 
     public Logout(socket: SocketIO.Socket) {
         const index = this.playerManager.FindPlayerBySocket(socket);
-        if (this.PlayerList[index].state === STATE.WAITING) {
+        if (index >= 0 && index < this.PlayerList.length && this.PlayerList[index].state === STATE.WAITING) {
             this.playerManager.RemovePlayer(index);
         }
     }
