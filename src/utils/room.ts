@@ -131,6 +131,7 @@ export default class Room {
     }
 
     public async Run(): Promise<void> {
+        await System.Delay(2 * System.sec);
         this.Init();
         await System.Delay(3 * System.sec);
         await this.ChangeCard();

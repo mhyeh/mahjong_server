@@ -21,7 +21,7 @@ async function main(): Promise<void> {
 
     // whenever a user connects on port 3000 via
     // a websocket, log that a user has connected
-    io.on("connection", (socket: any) => {
+    io.on("connection", (socket: socketIO.Socket) => {
         console.log("a user connected");
 
         socket.on("join", (name: string, callback: any) => callback(game.Login(name, socket)));
@@ -32,11 +32,12 @@ async function main(): Promise<void> {
                 return;
             }
 
-            socket.join(room);
-            game.rooms.get(room).io = io;
-            const index = game.playerManager.FindPlayerByUUID(uuid);
-            game.PlayerList[index].socket = socket;
-            callback();
+            socket.join(room, () => {
+                game.rooms.get(room).io = io;
+                const index = game.playerManager.FindPlayerByUUID(uuid);
+                game.PlayerList[index].socket = socket;
+                callback();
+            });
         });
 
         socket.on("ready", (room: string, uuid: string, callback: any) => {
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
             }
 
             const id = game.rooms.get(room).Accept(uuid);
+            console.log("accept", id);
             if (id === -1) {
                 callback("auth failed");
                 return;

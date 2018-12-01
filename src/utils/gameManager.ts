@@ -1,5 +1,5 @@
+import * as bcrypt from "bcrypt";
 import * as socketIO from "socket.io";
-import { v4 } from "uuid";
 
 import Lobby from "./Lobby";
 import { IPlayer, PlayerManager, STATE } from "./PlayerManager";
@@ -69,7 +69,7 @@ export class GameManager {
     }
 
     public CreateRoom(): void {
-        const roomName = v4();
+        const roomName = bcrypt.genSaltSync(40).substr(7, 20);
         this.rooms.set(roomName, new Room(this, roomName));
         const matchPlayer = this.lobby.Match();
         const room = this.rooms.get(roomName);
