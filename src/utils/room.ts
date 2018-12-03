@@ -160,7 +160,7 @@ export default class Room {
             let fail = false;
             if ((action.command & CommandType.COMMAND_PONGON)) {
                 const PromiseArray = new Array<any>(4);
-                const act: IAction = { command: CommandType.NONE, card: new Card(-1, -1), score: 0 };
+                let act: IAction = { command: CommandType.NONE, card: new Card(-1, -1), score: 0 };
                 PromiseArray[0] = System.DelayValue(0, act);
 
                 for (let i = 1; i < 4; i++) {
@@ -177,15 +177,18 @@ export default class Room {
                 const actionSet = await Promise.all(PromiseArray);
                 for (let i = 1; i < 4; i++) {
                     const id = (i + currentIdx) % 4;
-                    const action = actionSet[i];
+                    act = actionSet[i];
                     if (act.command & CommandType.COMMAND_HU) {
                         const tai = this.players[id].checkHu(action.card);
-                        this.players[currentIdx].Door.sub(action.card);
-                        this.players[currentIdx].VisiableDoor.sub(action.card);
                         this.players[currentIdx].credit -= Math.pow(2, tai);
-                        this.players[id].HuCards.add(action.card);
-                        this.HuTiles.add(action.card);
                         this.players[id].credit += Math.pow(2, tai);
+                        this.players[id].HuCards.add(action.card);
+
+                        if (!fail) {
+                            this.players[currentIdx].Door.sub(action.card);
+                            this.players[currentIdx].VisiableDoor.sub(action.card);
+                            this.HuTiles.add(action.card);
+                        }
                         commandIdx.huIdx = id;
                         fail = true;
                     }
@@ -405,13 +408,16 @@ export default class Room {
     }
 
     private HuUnder2(): boolean {
-        for (let i = 0; i < 4; i++) {
-            if (!this.players[i].isHu) {
-                this.players[i].maxTai = this.players[i].checkTing();
-                this.players[i].isTing = this.players[i].maxTai > 0;
+        if (Number(this.players[0].isHu) + Number(this.players[1].isHu) + Number(this.players[2].isHu) + Number(this.players[3].isHu) <= 2) {
+            for (let i = 0; i < 4; i++) {
+                if (!this.players[i].isHu) {
+                    this.players[i].maxTai = this.players[i].checkTing();
+                    this.players[i].isTing = this.players[i].maxTai > 0;
+                }
             }
+            return true;
         }
-        return true;
+        return false;
     }
 
     private LackPenalty(): void {

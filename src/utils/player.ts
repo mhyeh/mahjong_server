@@ -244,12 +244,12 @@ export default class Player {
                 if ((this.Hand.values[c].getIndex(v)) === 4) {
                     if (this.checkGon(tmpCard)) {
                         command |= CommandType.COMMAND_ONGON;
-                        actions.get(CommandType.COMMAND_ONGON).push(new Card(c, v));
+                        actions.get(CommandType.COMMAND_ONGON).push(tmpCard);
                     }
                 } else if (this.Hand.values[c].getIndex(v) === 1 && this.Door.values[c].getIndex(v) === 3) {
                     if (this.checkGon(tmpCard)) {
                         command |= CommandType.COMMAND_PONGON;
-                        actions.get(CommandType.COMMAND_PONGON).push(new Card(c, v));
+                        actions.get(CommandType.COMMAND_PONGON).push(tmpCard);
                     }
                 }
             }
@@ -276,7 +276,7 @@ export default class Player {
 
         if (action.command & CommandType.COMMAND_ZIMO) {
             this.isHu = true;
-            this.HuCards.sub(action.card);
+            this.HuCards.add(action.card);
             this.game.rooms.get(this.Room).HuTiles.add(action.card);
             this.Hand.sub(action.card);
             action.card.color = -1;
@@ -298,6 +298,7 @@ export default class Player {
                     this.credit += 2;
                     action.score += 2;
                     this.gonRecord[i] += 2;
+                    this.game.rooms.get(this.Room).players[i].credit -= 2;
                 }
             }
         } else if (action.command & CommandType.COMMAND_PONGON) {
@@ -307,6 +308,7 @@ export default class Player {
                     this.credit += 1;
                     action.score += 1;
                     this.gonRecord[i] += 1;
+                    this.game.rooms.get(this.Room).players[i].credit -= 1;
                 }
             }
         } else {
